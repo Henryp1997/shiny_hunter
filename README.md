@@ -1,4 +1,4 @@
-# shiny_hunter
+# Shiny starter Pokemon automation
 Starter Pokemon shiny hunting automation for Pokemon gen 3 (currently Treecko only)
 
 ## Before using
