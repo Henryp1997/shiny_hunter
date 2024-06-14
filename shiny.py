@@ -32,6 +32,12 @@ def reset_emu():
 def open_game(game_name, full_scheme=True):
     app = Application(backend="uia")
     app.start(f'{os.path.dirname(os.path.realpath(__file__))}/VisualBoyAdvance.exe')
+
+    # this will open the game by searching through the given directory structure
+    # listed below (under the NOTE). By default, this is not the chosen way to
+    # open the game as it takes a while, so you MUST make sure to open the correct
+    # ROM in VisualBoyAdvance BEFORE you run this script. Otherwise, it will attempt
+    # to open whatever was the most recently opened ROM, which could be the wrong one
     if full_scheme:
         app.window().wait('visible')
         app.VisualBoyAdvance.menu_select('File->Open...')
@@ -41,7 +47,8 @@ def open_game(game_name, full_scheme=True):
         child.Desktop.click_input()
         child.window(title="Vertical", control_type="ScrollBar").wheel_mouse_input(wheel_dist=-100)
 
-        for name in ['Python projects', 'auto_gba', f'{game_name}.gba']:
+        # NOTE: these MUST be changed to match your file structure
+        for name in ['Programming', 'shiny_hunter', f'{game_name}.gba']:
             click_then_open(child, name)
     
     elif not full_scheme:
@@ -85,7 +92,7 @@ def check_shiny():
         y = int(i/width)
         pixel_loc_and_rgb.append((x, y, val))
 
-    non_shiny_colour = (152, 208, 72)
+    # non_shiny_colour = (152, 208, 72)
     shiny_colour1 = (144, 200, 208)
     shiny_colour2 = (72, 160, 144)
     count1 = len([val for val in pixel_loc_and_rgb if val[-1] == shiny_colour1])
@@ -116,8 +123,9 @@ def game_loop(reset_count):
                 keypress(btn_a)
                 time.sleep(0.8)
 
-        except FileNotFoundError:
-            pass
+        except IndexError:
+            print('Error')
+            return False, reset_count
 
     # interact with bag in overworld
     keypress(btn_a)
@@ -148,35 +156,36 @@ def game_loop(reset_count):
 
     else:
         print('Shiny found!')
+        reset_count += 1
 
     return shiny, reset_count
 
+if __name__ == "__main__":
+    shiny = False
+    reset_count = 0
+    game_name = 'ruby'
+    remove_screenshot()
+    while not shiny:
+        app = open_game(game_name, full_scheme=False)
 
-shiny = False
-reset_count = 0
-game_name = 'ruby'
-remove_screenshot()
-while not shiny:
-    app = open_game(game_name, full_scheme=False)
+        shiny, reset_count = game_loop(reset_count)
 
-    shiny, reset_count = game_loop(reset_count)
+        with open(f'{main_path}/counter.txt', 'r') as f:
+            lines = f.readlines()
 
-    with open(f'{main_path}/counter.txt', 'r') as f:
-        lines = f.readlines()
+        total_count = int(lines[0])  
 
-    total_count = int(lines[0])
+        print(f'Total reset count = {total_count}')
+        print(f'Current run reset count = {reset_count}\n')
 
-    print(f'Total reset count = {total_count}')
-    print(f'Current run reset count = {reset_count}\n')
+        total_count += 1
 
-    total_count += 1
+        f.close()
 
-    f.close()
+        with open(f'{main_path}/counter.txt', 'w') as f:
+            f.write(f'{total_count}')
 
-    with open(f'{main_path}/counter.txt', 'w') as f:
-        f.write(f'{total_count}')
+        if shiny:
+            break
 
-    if shiny:
-        break
-
-    app.kill()
+        app.kill()
