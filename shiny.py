@@ -142,7 +142,7 @@ def game_loop(reset_count):
         keypress(btn_a)
 
     # wait for wild pokemon message, then press a
-    time.sleep(6)
+    time.sleep(7)
     keypress(btn_a)
 
     time.sleep(2.5)
