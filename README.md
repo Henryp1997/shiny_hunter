@@ -11,3 +11,7 @@ Starter Pokemon shiny hunting automation for Pokemon gen 3 (currently Treecko on
 
 ## Shiny Treecko found after 7282 resets
 ![shiny_treecko](https://user-images.githubusercontent.com/118852495/232248425-ba7a4f39-75f1-42c7-a32b-85764812cde3.png)
+
+<br>**For reference, this is what a non-shiny looks like:**<br>
+![image](https://github.com/Henryp1997/shiny_hunter/assets/118852495/9039f190-6d06-4727-ab84-23b2fa7a5eca)
+
