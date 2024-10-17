@@ -29,15 +29,10 @@ def reset_emu():
     for btn in all_btns:
         gui.keyUp(btn)
 
-def open_game(game_name, full_scheme=True):
+def open_game(game_name, dir_structure, full_scheme=True):
     app = Application(backend="uia")
     app.start(f'{os.path.dirname(os.path.realpath(__file__))}/VisualBoyAdvance.exe')
 
-    # this will open the game by searching through the given directory structure
-    # listed below (under the NOTE). By default, this is not the chosen way to
-    # open the game as it takes a while, so you MUST make sure to open the correct
-    # ROM in VisualBoyAdvance BEFORE you run this script. Otherwise, it will attempt
-    # to open whatever was the most recently opened ROM, which could be the wrong one
     if full_scheme:
         app.window().wait('visible')
         app.VisualBoyAdvance.menu_select('File->Open...')
@@ -47,8 +42,7 @@ def open_game(game_name, full_scheme=True):
         child.Desktop.click_input()
         child.window(title="Vertical", control_type="ScrollBar").wheel_mouse_input(wheel_dist=-100)
 
-        # NOTE: these MUST be changed to match your file structure
-        for name in ['Programming', 'shiny_hunter', f'{game_name}.gba']:
+        for name in dir_structure:
             click_then_open(child, name)
     
     elif not full_scheme:
@@ -60,17 +54,12 @@ def open_game(game_name, full_scheme=True):
 
     return app
 
-def remove_screenshot():
-    try:
-        for file in glob.glob(f'{main_path}/*.png'):
-            os.remove(file)
-    except:
-        return
-    return
+def remove_screenshots():
+    for file in glob.glob(f'{main_path}/*.png'):
+        os.remove(file)
 
 def capture_screenshot():
     keypress('f12')
-    return
 
 def check_shiny():
     # first take screen capture of game
@@ -102,22 +91,27 @@ def check_shiny():
         return True
     else:
         return False
-        
-def game_loop(reset_count):
-    # check screenshot to see if at file select menu
-    white_col = (248, 248, 248)
-    blue_col = (136, 144, 248)
 
+def check_at_file_select(screenshot_colours):
+    # File select menu colours
+    file_select_white = (248, 248, 248)
+    file_select_blue = (136, 144, 248)
+    if file_select_white in screenshot_colours and file_select_blue in screenshot_colours:
+        return True
+    return False
+
+def game_loop(reset_count):
+    # TODO: remove timers and use colours instead
     while True:
-        remove_screenshot()
+        remove_screenshots()
         capture_screenshot()
         try:
             png = glob.glob(f'{main_path}/*.png')
             img = Image.open(png[0])
-            rgb_vals = list(img.getdata())
+            screenshot_colours = list(img.getdata())
 
-            if white_col in rgb_vals and blue_col in rgb_vals:
-                remove_screenshot()
+            if check_at_file_select(screenshot_colours):
+                remove_screenshots()
                 break
             else:
                 keypress(btn_a)
@@ -127,27 +121,27 @@ def game_loop(reset_count):
             print('Error')
             return False, reset_count
 
-    # interact with bag in overworld
+    # Interact with bag in overworld
     keypress(btn_a)
     time.sleep(1)
     keypress(btn_a)
 
-    # press left to hover over treecko
+    # Press left to hover over treecko
     time.sleep(0.5)
     keypress('c')
 
-    # press a twice to select treecko
+    # Press a twice to select treecko
     for i in range(2):
         time.sleep(0.2)
         keypress(btn_a)
 
-    # wait for wild pokemon message, then press a
+    # Wait for wild pokemon message, then press a
     time.sleep(7)
     keypress(btn_a)
 
     time.sleep(2.5)
 
-    # check if treecko is shiny or not
+    # Check if treecko is shiny or not
     shiny = check_shiny()
 
     if not shiny:
@@ -164,15 +158,29 @@ if __name__ == "__main__":
     shiny = False
     reset_count = 0
     game_name = 'ruby'
-    remove_screenshot()
-    while not shiny:
-        app = open_game(game_name, full_scheme=False)
 
+    # NOTE: these MUST be changed to match your file structure
+    dir_structure = ['Programming', 'shiny_hunter', f'{game_name}.gba']
+
+    # Remove screenshots if any exist
+    remove_screenshots()
+
+    # Main loop
+    while not shiny:
+        # this will open the game by searching through the given directory structure
+        # listed below (under the NOTE). By default, this is not the chosen way to
+        # open the game as it takes a while, so you MUST make sure to open the correct
+        # ROM in VisualBoyAdvance BEFORE you run this script. Otherwise, it will attempt
+        # to open whatever was the most recently opened ROM, which could be the wrong one
+        app = open_game(game_name, dir_structure, full_scheme=False)
+
+        # reset_count is a temporary counter, i.e., it resets each time this script is run
+        # this value is increment upon each pass through the game_loop function
         shiny, reset_count = game_loop(reset_count)
 
+        # Open global counter file whose counter remains the same each time this script is ran
         with open(f'{main_path}/counter.txt', 'r') as f:
             lines = f.readlines()
-
         total_count = int(lines[0])  
 
         print(f'Total reset count = {total_count}')
