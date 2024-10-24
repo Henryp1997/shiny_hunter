@@ -39,19 +39,19 @@ class gen3Emu():
                 return False
     
     def select_starter(self):
-        method_name = f"select_{self.target_pokemon}"
+        method_name = f"__select_{self.target_pokemon}"
         return getattr(self, method_name)()
 
-    def select_treecko(self):
-        return self.perform_starter_selection(btn=self.btn_left)
+    def __select_treecko(self):
+        return self.__perform_starter_selection(btn=self.btn_left)
         
-    def select_mudkip(self):
-        return self.perform_starter_selection(btn=self.btn_right)
+    def __select_mudkip(self):
+        return self.__perform_starter_selection(btn=self.btn_right)
     
-    def select_torchic(self):
-        return self.perform_starter_selection(btn=None)
+    def __select_torchic(self):
+        return self.__perform_starter_selection(btn=None)
 
-    def perform_starter_selection(self, btn):
+    def __perform_starter_selection(self, btn):
         if btn is not None:
             self.keypress(btn)
         
@@ -59,7 +59,6 @@ class gen3Emu():
         for i in range(2):
             time.sleep(0.2)
             self.keypress(self.btn_a)
-        
 
     def check_colours_match(self, colours):
         remove_screenshots()
