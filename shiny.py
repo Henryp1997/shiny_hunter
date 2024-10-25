@@ -33,7 +33,7 @@ class gen3Emu():
             elif at_file_select == 0:
                 # Keep pressing 'a' until at file select screen
                 self.keypress(self.btn_a)
-                time.sleep(0.8)
+                time.sleep(0.2)
             elif at_file_select == -1:
                 # Errored in check_colours_match()
                 return False
@@ -103,10 +103,10 @@ def game_loop(emu, reset_count):
     emu.select_starter()
 
     # Wait for wild pokemon message, then press a
-    time.sleep(7)
+    time.sleep(6)
     emu.keypress(emu.btn_a)
 
-    time.sleep(2.5)
+    time.sleep(2)
 
     # Check if pokemon is shiny or not
     shiny = emu.check_colours_match(shiny_colours[emu.target_pokemon])
