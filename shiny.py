@@ -1,6 +1,6 @@
 from pywinauto.application import Application
 import pyautogui as gui
-from pynput.keyboard import Key, Controller
+from pynput.keyboard import Controller
 from PIL import Image
 import os
 import glob
@@ -68,16 +68,15 @@ class gen3Emu():
             img = Image.open(png[0])
             screenshot_colours = list(img.getdata())
 
-            col0, col1 = colours
-            checking_colour_positions = len(col0) == 4
+            checking_colour_positions = len(colours[0]) == 4
             if checking_colour_positions:
                 # For general colour checking to check progress in the game
-                if col0[:-1] in screenshot_colours and col1[:-1] in screenshot_colours:
+                if all(colour[:-1] in screenshot_colours for colour in colours):
                     remove_screenshots()
                     return 1
             elif not checking_colour_positions:
                 # For shiny checking
-                if col0 in screenshot_colours and col1 in screenshot_colours:
+                if all(colour in screenshot_colours for colour in colours):
                     remove_screenshots()
                     return 1
 
@@ -87,7 +86,46 @@ class gen3Emu():
         return 0
 
 
-def game_loop(emu, reset_count):
+def game_loop():
+    shiny = False
+    reset_count = 0
+    while not shiny:
+        # If full_scheme is True, this will open the game by searching through the given directory structure
+        # i.e., the dir_structure variable. By default, full_scheme is False as full_scheme=True takes a while,
+        # so to use full_scheme=False,you MUST make sure to open the correct ROM in VisualBoyAdvance BEFORE you
+        # run this script. Otherwise, it will attempt to open whatever was the most recently opened ROM, which could be the wrong one
+        app = open_game(game_name, dir_structure, full_scheme=False)
+
+        # Need to sleep after opening so the first screenshot is not taken too early
+        # TODO: investigate this, because it wasn't needed previously
+        time.sleep(0.8)
+
+        # reset_count is a temporary counter, i.e., it resets each time this script is run
+        # this value is increment upon each pass through the game_loop function
+        shiny, reset_count = play_game(emu, reset_count)
+
+        # Open global counter file whose counter remains the same each time this script is ran
+        with open(f"{main_path}/counter.txt", "r") as f:
+            lines = f.readlines()
+        total_count = int(lines[0])  
+
+        print(f"Total reset count = {total_count}")
+        print(f"Current run reset count = {reset_count}\n")
+
+        total_count += 1
+
+        f.close()
+
+        with open(f"{main_path}/counter.txt", "w") as f:
+            f.write(f"{total_count}")
+
+        if shiny:
+            break
+
+        app.kill()
+
+
+def play_game(emu, reset_count):
     # TODO: remove timers and use colours instead
 
     # Check if at file select screen. If False, something went wrong
@@ -164,9 +202,6 @@ def remove_screenshots():
 if __name__ == "__main__":
     main_path = os.path.dirname(os.path.realpath(__file__))
     keyboard = Controller()
-
-    shiny = False
-    reset_count = 0
     game_name = "ruby"
 
     # NOTE: these MUST be changed to match your file structure
@@ -176,16 +211,16 @@ if __name__ == "__main__":
     # Shiny colour dictionary. Use two colours per pokemon just to be sure
     shiny_colours = {
         "treecko": [
-            (144, 200, 208),
-            (72, 160, 144)
+            (144, 200, 208), # main teal on body
+            (232, 184, 152)  # darker shade on chin
         ],
-        "mudkip": [ # TODO change these to proper colours for mudkip
-            (144, 200, 208),
-            (72, 160, 144)
+        "mudkip": [
+            (192, 112, 216), # back of head
+            (248, 240, 192)  # lighter colour on tail
         ],
-        "torchic": [ # TODO change these to proper colours for torchic
-            (144, 200, 208),
-            (72, 160, 144)
+        "torchic": [
+            (248, 216, 112), # back of head (darker part)
+            (248, 232, 168)  # back of head (lighter part)
         ]
     }
 
@@ -203,40 +238,7 @@ if __name__ == "__main__":
     remove_screenshots()
 
     # Set up emulator object
-    emu = gen3Emu(target_pokemon="treecko")
+    emu = gen3Emu(target_pokemon="mudkip")
 
     # Main loop
-    while not shiny:
-        # If full_scheme is True, this will open the game by searching through the given directory structure
-        # i.e., the dir_structure variable. By default, full_scheme is False as full_scheme=True takes a while,
-        # so to use full_scheme=False,you MUST make sure to open the correct ROM in VisualBoyAdvance BEFORE you
-        # run this script. Otherwise, it will attempt to open whatever was the most recently opened ROM, which could be the wrong one
-        app = open_game(game_name, dir_structure, full_scheme=False)
-
-        # Need to sleep after opening so the first screenshot is not taken too early
-        # TODO: investigate this, because it wasn't needed previously
-        time.sleep(0.8)
-
-        # reset_count is a temporary counter, i.e., it resets each time this script is run
-        # this value is increment upon each pass through the game_loop function
-        shiny, reset_count = game_loop(emu, reset_count)
-
-        # Open global counter file whose counter remains the same each time this script is ran
-        with open(f"{main_path}/counter.txt", "r") as f:
-            lines = f.readlines()
-        total_count = int(lines[0])  
-
-        print(f"Total reset count = {total_count}")
-        print(f"Current run reset count = {reset_count}\n")
-
-        total_count += 1
-
-        f.close()
-
-        with open(f"{main_path}/counter.txt", "w") as f:
-            f.write(f"{total_count}")
-
-        if shiny:
-            break
-
-        app.kill()
+    game_loop()
