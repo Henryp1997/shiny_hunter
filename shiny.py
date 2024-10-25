@@ -39,7 +39,7 @@ class gen3Emu():
                 return False
     
     def select_starter(self):
-        method_name = f"__select_{self.target_pokemon}"
+        method_name = f"_gen3Emu__select_{self.target_pokemon}"
         return getattr(self, method_name)()
 
     def __select_treecko(self):
