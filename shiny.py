@@ -54,8 +54,8 @@ class GameController():
         # colour's position in the flattened rgb values array
         self.other_colours = {
             "File select": [
-                (248, 248, 248, 1000),
-                (80,   88, 144,   -1)
+                (80,   88, 144,    0),
+                (248, 248, 248, 1454)
             ]
         }
 
@@ -67,8 +67,8 @@ class GameController():
         """ Run the game in the emulator and perform a single shiny check """
         # TODO: remove timers and use colours instead
 
-        # Check if at file select screen. If False, something went wrong
-        if not self.atFileSelect():
+        # Check if at file select screen in while loop. If False, something went wrong
+        if not self.waitUntilFileSelectScreen():
             return False
 
         # Interact with bag in overworld
@@ -113,36 +113,44 @@ class GameController():
 
 
     ### Colour checking methods
-    def atFileSelect(self):
+    def waitUntilFileSelectScreen(self):
         while True:
-            at_file_select = self.checkColoursMatch(self.other_colours["File select"])
-            if at_file_select == 1:
-                # Success
-                return True
-            elif at_file_select == 0:
+            blue, white = self.other_colours["File select"]
+            blue_present = self.checkColoursMatch(blue, pixelpos=True)
+            if blue_present == 1:
+                white_present = self.checkColoursMatch(white, pixelpos=True, refresh_screenshot=False)
+                if white_present == 1:
+                    return True
+                return False # This should realistically never be reached
+
+            elif blue_present == 0:
                 # Keep pressing 'a' until at file select screen
                 self.__keypress(self.btn_a)
-                time.sleep(0.2)
-            elif at_file_select == -1:
+                time.sleep(0.15)
+
+            elif blue_present == -1:
                 # Errored in checkColoursMatch()
                 return False
     
 
-    def checkColoursMatch(self, colours):
-        self.deleteAllScreenshots()
-        self.captureScreenshot()
+    def checkColoursMatch(self, colours, pixelpos=False, refresh_screenshot=True):
         try:
+            if refresh_screenshot:
+                self.deleteAllScreenshots()
+                self.captureScreenshot()
+            
             png = self.getLatestScreenshot()
             img = Image.open(png)
             screenshot_colours = list(img.getdata())
 
-            checking_colour_positions = len(colours[0]) == 4
-            if checking_colour_positions:
-                # For general colour checking to check progress in the game
-                if all(colour[:-1] in screenshot_colours for colour in colours):
-                    self.deleteAllScreenshots()
-                    return 1
-            elif not checking_colour_positions:
+            if pixelpos:
+                r, g, b, pos = colours
+                if screenshot_colours[pos] != (r, g, b):
+                    return 0
+                return 1
+
+            elif not pixelpos:
+                # TODO: make all colours position based
                 # For shiny checking
                 if all(colour in screenshot_colours for colour in colours):
                     self.deleteAllScreenshots()
