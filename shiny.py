@@ -1,14 +1,24 @@
-from pywinauto.application import Application
+"""
+Automated Shiny Hunter for Pokémon Gen 3 using VisualBoyAdvance emulator
+
+This script automates the process of soft resetting and shiny checking in Pokémon R/S
+by simulating keypresses and analysing pixel RGB values in screenshots
+
+Note: VisualBoyAdvance must be using the config file included in this repository (vba.ini)
+"""
+
+import os
+import sys
+import glob
+import time
+import pywinauto
 import pyautogui as gui
 from pynput.keyboard import Controller
 from PIL import Image
-import os
-import glob
-import time
 
 
-class gen3Emu():
-    def __init__(self, target_pokemon):
+class GameController():
+    def __init__(self, target_pokemon, main_path):
         self.btn_a = "z"
         self.btn_b = "x"
         self.btn_left = "c"
@@ -16,147 +26,209 @@ class gen3Emu():
         self.btn_start = "enter"
         self.btn_select = "backspace"
         self.btn_scrnshot = "f12"
+
+        if target_pokemon not in ["Treecko", "Mudkip", "Torchic"]:
+            sys.exit("Unrecognised starter Pokemon entered!")
+
         self.target_pokemon = target_pokemon
+        self.main_path = main_path
 
-    def keypress(self, key):
-        gui.keyDown(key); gui.keyUp(key)
+        # Shiny colour dictionary. Use two colours per pokemon just to be sure
+        self.shiny_colours = {
+            "Treecko": [
+                (144, 200, 208), # main teal on body
+                (232, 184, 152)  # darker shade on chin
+            ],
+            "Mudkip": [
+                (192, 112, 216), # back of head
+                (248, 240, 192)  # lighter colour on tail
+            ],
+            "Torchic": [
+                (248, 216, 112), # back of head (darker part)
+                (248, 232, 168)  # back of head (lighter part)
+            ]
+        }
 
-    def capture_screenshot(self):
-        self.keypress(self.btn_scrnshot)
+        # Other colour dictionary. This contains colours used to work out where
+        # we currently are in the game. The fourth value in each tuple is the
+        # colour's position in the flattened rgb values array
+        self.other_colours = {
+            "File select": [
+                (248, 248, 248, 1000),
+                (80,   88, 144,   -1)
+            ]
+        }
 
-    def check_at_file_select_screen(self):
+        # Remove screenshots if any exist
+        self.deleteAllScreenshots()
+
+
+    def playGame(self):
+        """ Run the game in the emulator and perform a single shiny check """
+        # TODO: remove timers and use colours instead
+
+        # Check if at file select screen. If False, something went wrong
+        if not self.atFileSelect():
+            return False
+
+        # Interact with bag in overworld
+        self.__keypress(self.btn_a)
+        time.sleep(1)
+        self.__keypress(self.btn_a)
+
+        time.sleep(0.5)
+        self.selectStarter()
+
+        # Wait for wild pokemon message, then press a
+        time.sleep(6)
+        self.__keypress(self.btn_a)
+
+        time.sleep(2)       
+
+        return self.checkColoursMatch(self.shiny_colours[self.target_pokemon])
+
+
+    ### Screenshot methods
+    def captureScreenshot(self):
+        self.__keypress(self.btn_scrnshot)
+
+
+    def deleteAllScreenshots(self):
+        for file in self.getLatestScreenshot(get_all=True):
+            os.remove(file)
+
+    
+    def getLatestScreenshot(self, get_all=False):
+        pngs = glob.glob(f"{self.main_path}/*ruby*.png")
+        if get_all:
+            return pngs
+        return pngs[0] # Just return the first one found
+    
+
+    def takeShinyScreenshot(self):
+        self.deleteAllScreenshots()
+        self.captureScreenshot()
+        png = self.getLatestScreenshot()
+        os.rename(png, f"{png.strip(os.path.basename(png))}SHINYFOUND.png")
+
+
+    ### Colour checking methods
+    def atFileSelect(self):
         while True:
-            at_file_select = self.check_colours_match(other_colours["File select"])
+            at_file_select = self.checkColoursMatch(self.other_colours["File select"])
             if at_file_select == 1:
                 # Success
                 return True
             elif at_file_select == 0:
                 # Keep pressing 'a' until at file select screen
-                self.keypress(self.btn_a)
+                self.__keypress(self.btn_a)
                 time.sleep(0.2)
             elif at_file_select == -1:
-                # Errored in check_colours_match()
+                # Errored in checkColoursMatch()
                 return False
     
-    def select_starter(self):
-        method_name = f"_gen3Emu__select_{self.target_pokemon}"
-        return getattr(self, method_name)()
 
-    def __select_treecko(self):
-        return self.__perform_starter_selection(btn=self.btn_left)
-        
-    def __select_mudkip(self):
-        return self.__perform_starter_selection(btn=self.btn_right)
-    
-    def __select_torchic(self):
-        return self.__perform_starter_selection(btn=None)
-
-    def __perform_starter_selection(self, btn):
-        if btn is not None:
-            self.keypress(btn)
-        
-        # Press a twice to select pokemon
-        for i in range(2):
-            time.sleep(0.2)
-            self.keypress(self.btn_a)
-
-    def check_colours_match(self, colours):
-        remove_screenshots()
-        self.capture_screenshot()
+    def checkColoursMatch(self, colours):
+        self.deleteAllScreenshots()
+        self.captureScreenshot()
         try:
-            png = glob.glob(f"{main_path}/*ruby*.png")
-            img = Image.open(png[0])
+            png = self.getLatestScreenshot()
+            img = Image.open(png)
             screenshot_colours = list(img.getdata())
 
             checking_colour_positions = len(colours[0]) == 4
             if checking_colour_positions:
                 # For general colour checking to check progress in the game
                 if all(colour[:-1] in screenshot_colours for colour in colours):
-                    remove_screenshots()
+                    self.deleteAllScreenshots()
                     return 1
             elif not checking_colour_positions:
                 # For shiny checking
                 if all(colour in screenshot_colours for colour in colours):
-                    remove_screenshots()
+                    self.deleteAllScreenshots()
                     return 1
-
         except IndexError:
             print("Error")
             return -1
         return 0
 
 
-def game_loop():
+    ### Bag Pokemon selection methods
+    def selectStarter(self):
+        method_name = f"_GameController__select{self.target_pokemon}"
+        return getattr(self, method_name)()
+
+
+    def __selectTreecko(self):
+        return self.__performStarterSelection(btn=self.btn_left)
+
+
+    def __selectMudkip(self):
+        return self.__performStarterSelection(btn=self.btn_right)
+    
+
+    def __selectTorchic(self):
+        return self.__performStarterSelection(btn=None)
+
+
+    def __performStarterSelection(self, btn):
+        if btn is not None:
+            self.__keypress(btn)
+        
+        # Press a twice to select pokemon
+        for i in range(2):
+            time.sleep(0.2)
+            self.__keypress(self.btn_a)
+
+    
+    ### App interaction methods
+    def __keypress(self, key):
+        gui.keyDown(key); gui.keyUp(key)
+
+
+def game_loop(main_path):
     shiny = False
     reset_count = 0
-    while not shiny:
-        # If full_scheme is True, this will open the game by searching through the given directory structure
-        # i.e., the dir_structure variable. By default, full_scheme is False as full_scheme=True takes a while,
-        # so to use full_scheme=False,you MUST make sure to open the correct ROM in VisualBoyAdvance BEFORE you
-        # run this script. Otherwise, it will attempt to open whatever was the most recently opened ROM, which could be the wrong one
-        app = open_game(game_name, dir_structure, full_scheme=False)
 
-        # Need to sleep after opening so the first screenshot is not taken too early
-        # TODO: investigate this, because it wasn't needed previously
-        time.sleep(0.8)
+    # Open global counter file whose counter remains the same each time this script is ran
+    with open(f"{main_path}/reset_counter.txt", "r") as f:
+        lines = f.readlines()
+    total_count = int(lines[0])  
 
-        # reset_count is a temporary counter, i.e., it resets each time this script is run
-        # this value is increment upon each pass through the game_loop function
-        shiny, reset_count = play_game(emu, reset_count)
+    try:
+        while not shiny:
+            print(f"Total reset count = {total_count}")
+            print(f"Current run reset count = {reset_count}")
 
-        # Open global counter file whose counter remains the same each time this script is ran
-        with open(f"{main_path}/counter.txt", "r") as f:
-            lines = f.readlines()
-        total_count = int(lines[0])  
+            # If full_scheme is True, this will open the game by searching through the given directory structure
+            # i.e., the dir_structure variable. By default, full_scheme is False as full_scheme=True takes a while,
+            # so to use full_scheme=False, you MUST make sure to open the correct ROM in VisualBoyAdvance BEFORE you
+            # run this script. Otherwise, it will attempt to open whatever was the most recently opened ROM, which could be the wrong one
+            app = open_game(game_name, dir_structure, main_path, full_scheme=False)
 
-        print(f"Total reset count = {total_count}")
-        print(f"Current run reset count = {reset_count}\n")
+            # Need to sleep after opening so the first screenshot is not taken too early
+            # TODO: investigate this, because it wasn't needed previously
+            time.sleep(0.8)
 
-        total_count += 1
+            # reset_count is a temporary counter, i.e., it resets each time this script is run
+            # this value is increment upon each pass through the game_loop function
+            shiny = emu.playGame()
+            if not shiny:
+                print("Not shiny\n")
+            else:
+                print("Shiny found!\n")
+                emu.takeShinyScreenshot()
+                break
 
-        f.close()
+            total_count += 1; reset_count += 1
 
-        with open(f"{main_path}/counter.txt", "w") as f:
-            f.write(f"{total_count}")
+            with open(f"{main_path}/reset_counter.txt", "w") as f:
+                f.write(f"{total_count}")
 
-        if shiny:
-            break
-
+            app.kill()
+    except KeyboardInterrupt:
+        # Ensure the emulator is killed when stopping this program
         app.kill()
-
-
-def play_game(emu, reset_count):
-    # TODO: remove timers and use colours instead
-
-    # Check if at file select screen. If False, something went wrong
-    if not emu.check_at_file_select_screen():
-        return False, reset_count
-
-    # Interact with bag in overworld
-    emu.keypress(emu.btn_a)
-    time.sleep(1)
-    emu.keypress(emu.btn_a)
-
-    time.sleep(0.5)
-    emu.select_starter()
-
-    # Wait for wild pokemon message, then press a
-    time.sleep(6)
-    emu.keypress(emu.btn_a)
-
-    time.sleep(2)
-
-    # Check if pokemon is shiny or not
-    shiny = emu.check_colours_match(shiny_colours[emu.target_pokemon])
-    if not shiny:
-        print("Not shiny")
-        reset_count += 1
-
-    else:
-        print("Shiny found!")
-        reset_count += 1
-
-    return shiny, reset_count
 
 
 def click_then_open(child, name):
@@ -164,19 +236,18 @@ def click_then_open(child, name):
     child.window(title=name, control_type="ListItem", found_index=0).type_keys("{ENTER}")
 
 
-def open_game(game_name, dir_structure, full_scheme=True):
-    app = Application(backend="uia")
+def open_game(game_name, dir_structure, main_path, full_scheme=True):
+    app = pywinauto.Application(backend="uia")
     app.start(f"{main_path}/VisualBoyAdvance.exe")
 
     if full_scheme:
-        app.window().wait("visible")
+        wait_until_VBA_open(app)
+
+        # Open ROM
         app.VisualBoyAdvance.menu_select("File->Open...")
-
         child = app.window().child_window(title="Select ROM")
-
         child.Desktop.click_input()
         child.window(title="Vertical", control_type="ScrollBar").wheel_mouse_input(wheel_dist=-100)
-
         for name in dir_structure:
             click_then_open(child, name)
     
@@ -185,7 +256,7 @@ def open_game(game_name, dir_structure, full_scheme=True):
         # Therefore, before running the first time (or if the
         # emulator has opened a different file recently), game.gba
         # must be opened
-        app.window().wait("visible")
+        wait_until_VBA_open(app)
         gui.keyDown("ctrl")
         gui.keyDown("f1")
         gui.keyUp("ctrl")
@@ -194,13 +265,15 @@ def open_game(game_name, dir_structure, full_scheme=True):
     return app
 
 
-def remove_screenshots():
-    for file in glob.glob(f"{main_path}/*ruby*.png"):
-        os.remove(file)
+def wait_until_VBA_open(app, timeout=10):
+    """ Wait until VisualBoyAdvance window is detected. Exit program if timeout exceeded """
+    try:
+        app.window().wait("visible", timeout=timeout)
+    except pywinauto.timings.TimeoutError:
+        sys.exit("Timed out waiting for VisualBoyAdvance window to open")
 
 
 if __name__ == "__main__":
-    main_path = os.path.dirname(os.path.realpath(__file__))
     keyboard = Controller()
     game_name = "ruby"
 
@@ -208,37 +281,8 @@ if __name__ == "__main__":
     # if using full_scheme=True in the open_game function
     dir_structure = ['Programming', 'shiny_hunter', f'{game_name}.gba']
 
-    # Shiny colour dictionary. Use two colours per pokemon just to be sure
-    shiny_colours = {
-        "treecko": [
-            (144, 200, 208), # main teal on body
-            (232, 184, 152)  # darker shade on chin
-        ],
-        "mudkip": [
-            (192, 112, 216), # back of head
-            (248, 240, 192)  # lighter colour on tail
-        ],
-        "torchic": [
-            (248, 216, 112), # back of head (darker part)
-            (248, 232, 168)  # back of head (lighter part)
-        ]
-    }
-
-    # Other colour dictionary. This contains colours used to work out where
-    # we currently are in the game. The fourth value in each tuple is the
-    # colour's position in the flattened rgb values array
-    other_colours = {
-        "File select": [
-            (248, 248, 248, 1000),
-            (80, 88, 144, -1)
-        ]
-    }
-
-    # Remove screenshots if any exist
-    remove_screenshots()
-
     # Set up emulator object
-    emu = gen3Emu(target_pokemon="mudkip")
+    emu = GameController(target_pokemon="Mudkip", main_path=os.path.dirname(os.path.realpath(__file__)))
 
     # Main loop
-    game_loop()
+    game_loop(main_path=os.path.dirname(os.path.realpath(__file__)))
