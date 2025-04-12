@@ -105,11 +105,12 @@ class GameController():
         return pngs[0] # Just return the first one found
     
 
-    def takeShinyScreenshot(self):
+    def takeShinyScreenshot(self, debug=False):
         self.deleteAllScreenshots()
         self.captureScreenshot()
         png = self.getLatestScreenshot()
-        os.rename(png, f"{png.strip(os.path.basename(png))}SHINYFOUND.png")
+        newname = rf"\debug_screenshots\{time.time()}" if debug else "SHINYFOUND"
+        os.rename(png, f"{png.strip(os.path.basename(png))}{newname}.png")
 
 
     ### Colour checking methods
@@ -223,6 +224,7 @@ def game_loop(main_path):
             shiny = emu.playGame()
             if not shiny:
                 print("Not shiny\n")
+                emu.takeShinyScreenshot(debug=True)
             else:
                 print("Shiny found!\n")
                 emu.takeShinyScreenshot()
